@@ -61,14 +61,15 @@ def tally() ->str:
 
     for entry in sorted_today_entries.items():
         result += entry[0] + ": **" + str(entry[1][0])
-        same_day:bool = entry[1][4]
-        before_noon:bool = entry[1][3]
-        minutes_remaining_till_noon:int = entry[1][5]
-        if before_noon and last_report_m == 'A':
-            result += "** (this morning, accurate for " + str(minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
-        elif not before_noon and last_report_m == 'A':
+        entry_same_day:bool = entry[1][4]
+        entry_before_noon:bool = entry[1][3]
+        entry_last_report_m:str = entry[1][2]
+        entry_minutes_remaining_till_noon:int = entry[1][5]
+        if entry_before_noon and entry_last_report_m == 'A':
+            result += "** (this morning, accurate for " + str(entry_minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
+        elif not entry_before_noon and entry_last_report_m == 'A':
             result += "** (reported this morning, needs PM update :exclamation: ) \n"
-        elif not before_noon and last_report_m == 'P':
+        elif not entry_before_noon and entry_last_report_m == 'P':
             result += "** (reported this afternoon, accurate for rest of day :white_check_mark: ) \n"
 
     result += "--------------------------------------------------------- \n"
