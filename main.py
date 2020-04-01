@@ -28,17 +28,16 @@ def tally() ->str:
         x:list = []
         y:list = []
 
-        before_noon:bool = False
-        same_day:bool = False
-        minutes_remaining_till_noon:int = 0
-
         with open(file, 'r') as jsonfile:
             user_info:dict = json.load(jsonfile)
+
+            same_day: bool = False
+            minutes_remaining_till_noon: int = 0
 
             current_user_datetime: datetime = datetime.now(pytz.timezone(user_info["timezone"]))
             noon_user_datetime: datetime = current_user_datetime.replace(hour=12, minute=0, second=0, microsecond=0)
 
-            before_noon = current_user_datetime < noon_user_datetime
+            before_noon:bool = current_user_datetime < noon_user_datetime
             if before_noon:
                 minutes_remaining_till_noon =  int((noon_user_datetime - current_user_datetime).total_seconds() / 60)
 
@@ -61,7 +60,7 @@ def tally() ->str:
 
     for entry in sorted_today_entries.items():
         result += entry[0] + ": **" + str(entry[1][0])
-        entry_same_day:bool = entry[1][4]
+        #entry_same_day:bool = entry[1][4]
         entry_before_noon:bool = entry[1][3]
         entry_last_report_m:str = entry[1][2]
         entry_minutes_remaining_till_noon:int = entry[1][5]
@@ -71,6 +70,9 @@ def tally() ->str:
             result += "** (reported this morning, needs PM update :exclamation: ) \n"
         elif not entry_before_noon and entry_last_report_m == 'P':
             result += "** (reported this afternoon, accurate for rest of day :white_check_mark: ) \n"
+        else:
+            result = "Something went wrong, please let @eccentricb know"
+            return result
 
     result += "--------------------------------------------------------- \n"
     for entry in sorted_old_entries.items():
