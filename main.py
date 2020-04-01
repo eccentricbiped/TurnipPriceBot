@@ -22,7 +22,7 @@ def tally() ->str:
     result:str = "Last updated Turnip Prices (Bells per Turnip):\n"
     today_entries:dict = {}
     old_entries:dict = {}
-    json_files: list = glob.glob(".\\Users\\*.json")
+    json_files: list = glob.glob("./Users/*.json")
 
     for file in json_files:
         x:list = []
@@ -80,7 +80,7 @@ def tally() ->str:
 
 def genplot():
 
-    json_files:list = glob.glob(".\\Users\\*.json")
+    json_files:list = glob.glob("./Users/*.json")
     plt.clf()
 
     xaxis: list = []
@@ -149,7 +149,7 @@ async def bpt_proc(ctx, arg:str):
     elif arg.isdigit():
 
         user_info:dict = {"username": author_username, "timezone": "UTC", "prices": { } }
-        user_info_path:str = ".\\Users\\{}.json".format(author_id)
+        user_info_path:str = "./Users/{}.json".format(author_id)
 
         if os.path.exists(user_info_path):
             with open(user_info_path) as f:
