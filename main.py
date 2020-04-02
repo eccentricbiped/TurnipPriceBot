@@ -13,7 +13,8 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 DAYZERO = 86
 ZFILL_LEN = 4
-current_date_no: int = datetime.now(pytz.timezone("America/Los_Angeles")).timetuple().tm_yday - DAYZERO
+default_timezone:str = "America/Los_Angeles"
+current_date_no: int = datetime.now(pytz.timezone(default_timezone)).timetuple().tm_yday - DAYZERO
 
 
 bot = commands.Bot(command_prefix='!')
@@ -50,7 +51,7 @@ def tally() ->str:
                     if days_since == 0:
                         same_day = True
                         today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
-                    else:
+                    elif days_since < 7:
                         old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
 
     sorted_today_entries:dict = {k: v for k, v in sorted(today_entries.items(), key=lambda item: item[1][0], reverse=True)}
@@ -80,9 +81,9 @@ def tally() ->str:
 
     return result
 
-def genplot():
+def genplot(json_glob:str):
 
-    json_files:list = glob.glob("./Users/*.json")
+    json_files:list = glob.glob(json_glob)
     plt.clf()
 
     xaxis: list = []
@@ -140,17 +141,16 @@ async def bptcap_proc(ctx, arg:str):
 @bot.command(name='bpt', help='Stores the Bells Per Turnip for the user')
 async def bpt_proc(ctx, arg:str):
     author_username:str = str(ctx.message.author)
-    author_timezone:str = "UTC"
     author_id:str = str(ctx.message.author.id)
 
     if arg.lower() == "chart" or arg.lower() == "charts" or arg.lower() == "graph" or arg.lower() == "plot":
-        genplot()
+        genplot(".\\Users\\*.json")
         await ctx.send(file=discord.File('result.png'))
     elif arg.lower() == "check":
         await ctx.send(tally())
     elif arg.isdigit():
 
-        user_info:dict = {"username": author_username, "timezone": "UTC", "prices": { } }
+        user_info:dict = {"username": author_username, "timezone": default_timezone, "prices": { } }
         user_info_path:str = "./Users/{}.json".format(author_id)
 
         if os.path.exists(user_info_path):
@@ -166,7 +166,8 @@ async def bpt_proc(ctx, arg:str):
         with open(user_info_path, 'w+') as wf:
             json.dump(user_info, wf, indent = 4, sort_keys=True)
 
-        await ctx.send(tally())
+        genplot(user_info_path)
+        await ctx.send(tally(), file=discord.File('result.png'))
 
 bot.run(TOKEN)
 
