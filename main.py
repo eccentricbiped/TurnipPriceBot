@@ -144,7 +144,7 @@ async def bpt_proc(ctx, arg:str):
     author_id:str = str(ctx.message.author.id)
 
     if arg.lower() == "chart" or arg.lower() == "charts" or arg.lower() == "graph" or arg.lower() == "plot":
-        genplot(".\\Users\\*.json")
+        genplot("./Users/*.json")
         await ctx.send(file=discord.File('result.png'))
     elif arg.lower() == "check":
         await ctx.send(tally())
