@@ -13,7 +13,8 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 DAYZERO = 86
 ZFILL_LEN = 4
-current_date_no: int = datetime.now(pytz.timezone("America/Los_Angeles")).timetuple().tm_yday - DAYZERO
+default_timezone:str = "America/Los_Angeles"
+current_date_no: int = datetime.now(pytz.timezone(default_timezone)).timetuple().tm_yday - DAYZERO
 
 
 bot = commands.Bot(command_prefix='!')
@@ -140,7 +141,6 @@ async def bptcap_proc(ctx, arg:str):
 @bot.command(name='bpt', help='Stores the Bells Per Turnip for the user')
 async def bpt_proc(ctx, arg:str):
     author_username:str = str(ctx.message.author)
-    author_timezone:str = "UTC"
     author_id:str = str(ctx.message.author.id)
 
     if arg.lower() == "chart" or arg.lower() == "charts" or arg.lower() == "graph" or arg.lower() == "plot":
@@ -150,7 +150,7 @@ async def bpt_proc(ctx, arg:str):
         await ctx.send(tally())
     elif arg.isdigit():
 
-        user_info:dict = {"username": author_username, "timezone": "UTC", "prices": { } }
+        user_info:dict = {"username": author_username, "timezone": default_timezone, "prices": { } }
         user_info_path:str = ".\\Users\\{}.json".format(author_id)
 
         if os.path.exists(user_info_path):
