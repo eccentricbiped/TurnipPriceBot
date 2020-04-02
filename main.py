@@ -51,7 +51,7 @@ def tally() ->str:
                     if days_since == 0:
                         same_day = True
                         today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
-                    else:
+                    elif days_since < 7:
                         old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
 
     sorted_today_entries:dict = {k: v for k, v in sorted(today_entries.items(), key=lambda item: item[1][0], reverse=True)}
@@ -81,9 +81,9 @@ def tally() ->str:
 
     return result
 
-def genplot():
+def genplot(json_glob:str):
 
-    json_files:list = glob.glob(".\\Users\\*.json")
+    json_files:list = glob.glob(json_glob)
     plt.clf()
 
     xaxis: list = []
@@ -144,7 +144,7 @@ async def bpt_proc(ctx, arg:str):
     author_id:str = str(ctx.message.author.id)
 
     if arg.lower() == "chart" or arg.lower() == "charts" or arg.lower() == "graph" or arg.lower() == "plot":
-        genplot()
+        genplot(".\\Users\\*.json")
         await ctx.send(file=discord.File('result.png'))
     elif arg.lower() == "check":
         await ctx.send(tally())
@@ -166,7 +166,8 @@ async def bpt_proc(ctx, arg:str):
         with open(user_info_path, 'w+') as wf:
             json.dump(user_info, wf, indent = 4, sort_keys=True)
 
-        await ctx.send(tally())
+        genplot(user_info_path)
+        await ctx.send(tally(), file=discord.File('result.png'))
 
 bot.run(TOKEN)
 
