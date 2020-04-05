@@ -11,15 +11,21 @@ import pytz
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-DAYZERO = 86
+COMMAND = os.getenv('DISCORD_CMD')
+DAYZERO = 87
 ZFILL_LEN = 4
-default_timezone:str = "America/Los_Angeles"
-current_date_no: int = datetime.now(pytz.timezone(default_timezone)).timetuple().tm_yday - DAYZERO
-
+default_timezone:str = "America/New_York"
+current_date_no: int = -1
+is_sunday:bool = False
+MOD_SUNDAY = 3
 
 bot = commands.Bot(command_prefix='!')
 
+
 def tally() ->str:
+    global current_date_no
+    global is_sunday
+
     result:str = "Last updated Turnip Prices (Bells per Turnip):\n"
     today_entries:dict = {}
     old_entries:dict = {}
@@ -48,40 +54,60 @@ def tally() ->str:
                     last_price:int = list(prices.values())[-1]
                     days_since:int = current_date_no - int(list(prices.keys())[-1][:ZFILL_LEN])
                     last_report_m:str = list(prices.keys())[-1][-1]
+
+                    if last_report_m.isdigit():
+                        last_report_m = '' # Sunday price report
+
                     if days_since == 0:
                         same_day = True
                         today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
                     elif days_since < 7:
                         old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
 
-    sorted_today_entries:dict = {k: v for k, v in sorted(today_entries.items(), key=lambda item: item[1][0], reverse=True)}
-    sorted_old_entries: dict = {k: v for k, v in sorted(old_entries.items(), key=lambda item: item[1][0], reverse=True)}
+    sort_reverse:bool = not is_sunday
+    sorted_today_entries:dict = {k: v for k, v in sorted(today_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
+    sorted_old_entries: dict = {k: v for k, v in sorted(old_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
 
-    result += "--------------------------------------------------------- \n~ ~ ~ :sunrise: PRICES REPORTED TODAY :sunrise: ~ ~ ~\n"
+    if not is_sunday:
+        result += "--------------------------------------------------------- \n~ ~ ~ :sunrise: PRICES REPORTED TODAY :sunrise: ~ ~ ~\n"
 
-    for entry in sorted_today_entries.items():
-        result += entry[0] + ": **" + str(entry[1][0])
-        #entry_same_day:bool = entry[1][4]
-        entry_before_noon:bool = entry[1][3]
-        entry_last_report_m:str = entry[1][2]
-        entry_minutes_remaining_till_noon:int = entry[1][5]
-        if entry_before_noon and entry_last_report_m == 'A':
-            result += "** (this morning, accurate for " + str(entry_minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
-        elif not entry_before_noon and entry_last_report_m == 'A':
-            result += "** (reported this morning, needs PM update :exclamation: ) \n"
-        elif not entry_before_noon and entry_last_report_m == 'P':
-            result += "** (reported this afternoon, accurate for rest of day :white_check_mark: ) \n"
-        else:
-            result = "Something went wrong, please let @eccentricb know"
-            return result
+        for entry in sorted_today_entries.items():
+            result += entry[0] + ": **" + str(entry[1][0])
+            #entry_same_day:bool = entry[1][4]
+            entry_before_noon:bool = entry[1][3]
+            entry_last_report_m:str = entry[1][2]
+            entry_minutes_remaining_till_noon:int = entry[1][5]
+            if entry_before_noon and entry_last_report_m == 'A':
+                result += "** (this morning, accurate for " + str(entry_minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
+            elif not entry_before_noon and entry_last_report_m == 'A':
+                result += "** (reported this morning, needs PM update :exclamation: ) \n"
+            elif not entry_before_noon and entry_last_report_m == 'P':
+                result += "** (reported this afternoon, accurate for rest of day :white_check_mark: ) \n"
+            else:
+                result = "Something went wrong, please let @eccentricb know"
+                return result
 
-    result += "--------------------------------------------------------- \n"
-    for entry in sorted_old_entries.items():
-        result += entry[0] + ": **" + str(entry[1][0]) + '** (' + str(entry[1][1]) + ' day(s) ago)\n'
+        result += "--------------------------------------------------------- \n"
+        for entry in sorted_old_entries.items():
+            result += entry[0] + ": **" + str(entry[1][0]) + '** (' + str(entry[1][1]) + ' day(s) ago)\n'
+    else:
+        result += "--------------------------------------------------------- \n~ ~ ~ :sunrise: SUNDAY DAISY MAE PRICES REPORTED TODAY :sunrise: ~ ~ ~\n"
+
+        for entry in sorted_today_entries.items():
+            result += entry[0] + ": **" + str(entry[1][0])
+            entry_before_noon: bool = entry[1][3]
+            entry_minutes_remaining_till_noon: int = entry[1][5]
+
+            if entry_before_noon:
+                result += "** (available for " + str(entry_minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
+            else:
+                result += "** (Daisy Mae have left already :exclamation: ) \n"
 
     return result
 
+
 def genplot(json_glob:str):
+    global current_date_no
 
     json_files:list = glob.glob(json_glob)
     plt.clf()
@@ -92,7 +118,6 @@ def genplot(json_glob:str):
         xaxis.append(str(i).zfill(ZFILL_LEN) + 'A')
         xaxis.append(str(i).zfill(ZFILL_LEN) + 'P')
         xtickslist.append(str(i).zfill(ZFILL_LEN) + 'A')
-
 
     for file in json_files:
         x:list = []
@@ -134,12 +159,21 @@ def genplot(json_glob:str):
 
     plt.savefig('result.png')
 
-@bot.command(name='BPT', help='Stores the Bells Per Turnip for the user')
+
+@bot.command(name=COMMAND.upper(), help='Stores the Bells Per Turnip for the user')
 async def bptcap_proc(ctx, arg:str):
     await bpt_proc(ctx, arg)
 
-@bot.command(name='bpt', help='Stores the Bells Per Turnip for the user')
+
+@bot.command(name=COMMAND, help='Stores the Bells Per Turnip for the user')
 async def bpt_proc(ctx, arg:str):
+    global current_date_no
+    global is_sunday
+    global default_timezone
+
+    current_date_no = datetime.now(pytz.timezone(default_timezone)).timetuple().tm_yday - DAYZERO
+    is_sunday = datetime.now(pytz.timezone(default_timezone)).weekday() == 6
+
     author_username:str = str(ctx.message.author)
     author_id:str = str(ctx.message.author.id)
 
@@ -161,13 +195,18 @@ async def bpt_proc(ctx, arg:str):
         noon_user_datetime:datetime = current_user_datetime.replace(hour=12,minute=0)
 
         m_letter:str = 'A' if current_user_datetime < noon_user_datetime else 'P'
+        if is_sunday:
+            m_letter = ''
 
         user_info["prices"][str(current_date_no).zfill(ZFILL_LEN)+m_letter] = int(arg)
         with open(user_info_path, 'w+') as wf:
             json.dump(user_info, wf, indent = 4, sort_keys=True)
 
-        genplot(user_info_path)
-        await ctx.send(tally(), file=discord.File('result.png'))
+        if not is_sunday:
+            genplot(user_info_path)
+            await ctx.send(tally(), file=discord.File('result.png'))
+        else:
+            await ctx.send(tally())
 
 bot.run(TOKEN)
 
