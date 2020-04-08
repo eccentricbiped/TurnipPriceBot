@@ -162,8 +162,10 @@ function* generate_pattern_0_with_lengths(given_prices, high_phase_1_len, dec_ph
   for (var i = 2 + high_phase_1_len + dec_phase_1_len + high_phase_2_len + dec_phase_2_len; i < 14; i++) {
     min_pred = Math.floor(0.9 * buy_price);
     max_pred = Math.ceil(1.4 * buy_price);
-    if (!isNaN(given_prices[i])) {
-      if (given_prices[i] < min_pred || given_prices[i] > max_pred ) {
+    if (!isNaN(given_prices[i])) 
+    {
+      if (given_prices[i] < min_pred || given_prices[i] > max_pred ) 
+      {
         // Given price is out of predicted range, so this is the wrong pattern
         return;
       }
