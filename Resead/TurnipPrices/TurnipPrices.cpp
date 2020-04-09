@@ -6,6 +6,8 @@
 
 using namespace std;
 
+#define TEST_MODE 0
+
 namespace SEAD
 {
  
@@ -547,28 +549,52 @@ int main(int argc, char** argv)
 
     PossibilitiesList pbl;
 
-    if (argc == GivenPrices::GP_ARR_SIZE + 1)
+#if TEST_MODE
+    if(true)
     {
-        //char* debugArgs[] = { "exepath", "test.csv", "103", "93", "0", "87", "82", "79", "74", "128", "0", "0", "0", "0", "0" };
 
+        char* debugArgs[] = { "exepath", "test.csv", "100", "97", "122", "106", "117", "80", "71", "0", "0", "0", "0", "0", "0" };
+#else
+	if (argc == GivenPrices::GP_ARR_SIZE + 1)
+	{
+#endif
+
+
+        
          // First get given prices from command line args
         const int32_t gpArraySize = GivenPrices::GP_ARR_SIZE;
         int32_t gpArray[gpArraySize];
 
+
+        cout << "gpArray: ";
         for (int32_t i = 0; i < gpArraySize; ++i)
         {
+            
+#if TEST_MODE
             if (i >= 2)
             {
-                gpArray[i] = int32_t(atoi(argv[i]));
-                //gpArray[i] = int32_t(atoi(debugArgs[i+1]));
+                gpArray[i] = int32_t(atoi(debugArgs[i+1]));
             }
             else
             {
-                gpArray[i] = int32_t(atoi(argv[2]));
-                //gpArray[i] = int32_t(atoi(debugArgs[2]));
+                gpArray[i] = int32_t(atoi(debugArgs[2]));
             }
+#else
+			if (i >= 2)
+			{
+				gpArray[i] = int32_t(atoi(argv[i+1]));
+			}
+			else
+			{
+				gpArray[i] = int32_t(atoi(argv[2]));
+			}
+#endif
+
+            cout << ' ' << to_string(gpArray[i]);
 
         }
+
+        cout << endl;
 
         GivenPrices gp(gpArray);
 
@@ -577,9 +603,14 @@ int main(int argc, char** argv)
 
         // Output calculations to a CSV file
         ofstream csvFile;
+#if TEST_MODE
+        csvFile.open("test.csv");
+#else
         csvFile.open(argv[1]);
+#endif
 
 
+        cout << "TurnipPrices: With given prices there are " << to_string(numPossibilities) << " possible patterns." << endl;
         for (Poss poss : pbl)
         {
 
@@ -589,7 +620,6 @@ int main(int argc, char** argv)
                 csvFile << poss.priceArray[i].min << ',' << poss.priceArray[i].max << ',';
             }
             csvFile << endl;
-
 
             printf("Sun  Mon  Tue  Wed  Thu  Fri  Sat\n");
 
@@ -613,7 +643,10 @@ int main(int argc, char** argv)
 
         }
     }
-    cout << "Incorrect number of arguments. Need csv path, buy price, then 12 entry prices" << endl;
+    else
+    {
+        cout << "Incorrect number of arguments: " << to_string(argc) << " Need csv path, buy price, then 12 entry prices" << endl;
+    }
 
     return 0;
 }
