@@ -57,7 +57,7 @@ namespace PREDICT
 		Poss() : pattern(PP_NONE) {}
 		Poss(PriceRangeArray pra, PricePattern pp) : pattern(pp) 
 		{
-			memcpy(&priceArray[0], &pra[0], PRA_ARR_SIZE * sizeof(PriceRange));
+			std::memcpy(&priceArray[0], &pra[0], PRA_ARR_SIZE * sizeof(PriceRange));
 		}
 		
 		PriceRangeArray priceArray;
@@ -72,7 +72,7 @@ namespace PREDICT
 		GivenPrices() {}
 		GivenPrices(int32_t pa[]) 
 		{
-			memcpy(&nookPrices[0], &pa[0], GP_ARR_SIZE * sizeof(int32_t));
+			std::memcpy(&nookPrices[0], &pa[0], GP_ARR_SIZE * sizeof(int32_t));
 		}
 
 		bool HasDaisyMaePriceBeenSet() const { return daisyMaePrice > 0;  }
