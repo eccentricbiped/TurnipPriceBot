@@ -4,8 +4,6 @@
 
 #pragma warning(disable : 4305) // disable truncation warnings
 
-using namespace std;
-
 #define TEST_MODE 0
 
 namespace SEAD
@@ -90,8 +88,8 @@ namespace PREDICT
 		for (int32_t index = startIndex; index < endIndex; index++)
 		{
 
-			int32_t minPred = int32_t(floor(float_t(minRate * prices.daisyMaePrice) / 10000.0f));
-			int32_t maxPred = int32_t(ceil(float_t(maxRate * prices.daisyMaePrice) / 10000.0f));
+			int32_t minPred = intceil(float(minRate * prices.daisyMaePrice) / 10000.0f);
+			int32_t maxPred = intceil(float(maxRate * prices.daisyMaePrice) / 10000.0f);
 
 
 			if (prices.IsPriceSet(index))
@@ -125,9 +123,9 @@ namespace PREDICT
     {
         for (int32_t index = startIndex; index < endIndex; index++)
         {
-            const float_t lowFactor = 0.9f, highFactor = 1.4f;
-            int32_t minPred = int32_t(floor(lowFactor * float_t(prices.daisyMaePrice)));
-            int32_t maxPred = int32_t(ceil(highFactor * float_t(prices.daisyMaePrice)));
+            const float lowFactor = 0.9f, highFactor = 1.4f;
+            int32_t minPred = intceil(lowFactor * float(prices.daisyMaePrice));
+            int32_t maxPred = intceil(highFactor * float(prices.daisyMaePrice));
 
             if (prices.IsPriceSet(index))
             {
@@ -241,13 +239,13 @@ namespace PREDICT
 		
 
         // Now each day is independent of next
-        const float_t minRandoms[] = { 0.9f, 1.4f, 2.0f, 1.4f, 0.9f, 0.4f, 0.4f, 0.4f, 0.4f, 0.4f, 0.4f };
-        const float_t maxRandoms[] = { 1.4f, 2.0f, 6.0f, 2.0f, 1.4f, 0.9f, 0.9f, 0.9f, 0.9f, 0.9f, 0.9f };
+        const float minRandoms[] = { 0.9f, 1.4f, 2.0f, 1.4f, 0.9f, 0.4f, 0.4f, 0.4f, 0.4f, 0.4f, 0.4f };
+        const float maxRandoms[] = { 1.4f, 2.0f, 6.0f, 2.0f, 1.4f, 0.9f, 0.9f, 0.9f, 0.9f, 0.9f, 0.9f };
 
         for (int32_t index = peakStart; index < GivenPrices::GP_ARR_SIZE; index++)
         {
-			int32_t minPred = int32_t(floor(minRandoms[index - peakStart] * float_t(prices.daisyMaePrice)));
-			int32_t maxPred = int32_t(ceil(maxRandoms[index - peakStart] * float_t(prices.daisyMaePrice)));
+			int32_t minPred = intceil(minRandoms[index - peakStart] * float(prices.daisyMaePrice));
+			int32_t maxPred = intceil(maxRandoms[index - peakStart] * float(prices.daisyMaePrice));
 
             if (prices.IsPriceSet(index))
             {
@@ -320,9 +318,9 @@ namespace PREDICT
         // #TODO this could be made more accurate, I've not bothered with forward/backward calculating of the rate each side of the peak value
 		for (int32_t index = peakStart+2; index < peakStart+5; index++)
 		{
-			const float_t lowFactor = 1.4f, highFactor = 2.0f;
-			int32_t minPred = int32_t(floor(lowFactor * float_t(prices.daisyMaePrice)));
-			int32_t maxPred = int32_t(ceil(highFactor * float_t(prices.daisyMaePrice)));
+			const float lowFactor = 1.4f, highFactor = 2.0f;
+			int32_t minPred = intceil(lowFactor * float(prices.daisyMaePrice));
+			int32_t maxPred = intceil(highFactor * float(prices.daisyMaePrice));
 
             if (index != peakStart + 3)
             {
@@ -566,7 +564,7 @@ int main(int argc, char** argv)
         int32_t gpArray[gpArraySize];
 
 
-        cout << "gpArray: ";
+        std::cout << "gpArray: ";
         for (int32_t i = 0; i < gpArraySize; ++i)
         {
             
@@ -590,11 +588,11 @@ int main(int argc, char** argv)
 			}
 #endif
 
-            cout << ' ' << to_string(gpArray[i]);
+            std::cout << ' ' << std::to_string(gpArray[i]);
 
         }
 
-        cout << endl;
+        std::cout << std::endl;
 
         GivenPrices gp(gpArray);
 
@@ -602,7 +600,7 @@ int main(int argc, char** argv)
         const uint32_t numPossibilities = turnips.CalculatePossibilities(gp, pbl);
 
         // Output calculations to a CSV file
-        ofstream csvFile;
+        std::ofstream csvFile;
 #if TEST_MODE
         csvFile.open("test.csv");
 #else
@@ -610,7 +608,7 @@ int main(int argc, char** argv)
 #endif
 
 
-        cout << "TurnipPrices: With given prices there are " << to_string(numPossibilities) << " possible patterns." << endl;
+        std::cout << "TurnipPrices: With given prices there are " << std::to_string(numPossibilities) << " possible patterns." << std::endl;
         for (Poss poss : pbl)
         {
 
@@ -619,7 +617,7 @@ int main(int argc, char** argv)
             {
                 csvFile << poss.priceArray[i].min << ',' << poss.priceArray[i].max << ',';
             }
-            csvFile << endl;
+            csvFile << std::endl;
 
             printf("Sun  Mon  Tue  Wed  Thu  Fri  Sat\n");
 
@@ -645,7 +643,7 @@ int main(int argc, char** argv)
     }
     else
     {
-        cout << "Incorrect number of arguments: " << to_string(argc) << " Need csv path, buy price, then 12 entry prices" << endl;
+        std::cout << "Incorrect number of arguments: " << std::to_string(argc) << " Need csv path, buy price, then 12 entry prices" << std::endl;
     }
 
     return 0;
