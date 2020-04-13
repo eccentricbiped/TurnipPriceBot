@@ -44,14 +44,14 @@ def get_max_potential_price(user_info:dict) -> tuple:
     return max_value, max_value_index
 
 def time_index_to_text(index:int)->str:
-    result = ['Monday Morning', 'Monday Afternoon', 'Tuesday Morning', 'Tuesday Afternoon', 'Wednesday Morning', 'Wednesday Afternoon', 'Thursday Morning', 'Thursday Afternoon', 'Friday Morning', 'Friday Afternoon', 'Saturday Morning', 'Saturday Afternoon']
+    result = ['Mon Morning', 'Mon Afternoon', 'Tue Morning', 'Tue Afternoon', 'Wed Morning', 'Wed Afternoon', 'Thu Morning', 'Thu Afternoon', 'Fri Morning', 'Fri Afternoon', 'Sat Morning', 'Sat Afternoon']
     return result[index] if 0 <= index < NUM_RESULT_ELEMENTS else ""
 
 def tally(get_potential_fc:bool=False) ->str:
     global current_date_no
     global is_sunday
 
-    result:str = "Last updated Turnip Prices (Bells per Turnip):\n"
+    result:str = "\n"
     today_entries:dict = {}
     old_entries:dict = {}
     fc_entries:dict = {}
@@ -105,12 +105,12 @@ def tally(get_potential_fc:bool=False) ->str:
                     if days_since == 0:
                         same_day = True
                         today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
-                    elif days_since < 7:
+                    elif days_since < 5:
                         old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
 
                 if get_potential_fc:
                     user_max_price = get_max_potential_price(user_info)
-                    if user_max_price[1] != -1: # Add to fc_entries assuming we found a valid max potential
+                    if user_max_price[1] != -1 and user_max_price[0] > 300: # Add to fc_entries assuming we found a valid max potential
                         fc_entries[user_info["username"]] = user_max_price
 
     sort_reverse:bool = not is_sunday
@@ -119,10 +119,10 @@ def tally(get_potential_fc:bool=False) ->str:
     sorted_fc_entries:dict = {k: v for k, v in sorted(fc_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
 
     if not is_sunday:
-        result += "--------------------------------------------------------- \n~ ~ ~ :sunrise: PRICES REPORTED TODAY :sunrise: ~ ~ ~\n"
+        result += "\n~\t~\t~\t~\t~\t~ :sunrise: **PRICES REPORTED TODAY** :sunrise: ~\t~\t~\t~\t~\t~\n"
 
         for entry in sorted_today_entries.items():
-            result += entry[0] + ": **" + str(entry[1][0])
+            result += entry[0] + ": __**" + str(entry[1][0])
             #entry_same_day:bool = entry[1][4]
             entry_before_noon:bool = entry[1][3]
             entry_last_report_m:str = entry[1][2]
@@ -130,30 +130,39 @@ def tally(get_potential_fc:bool=False) ->str:
             entry_is_cranny_open:bool = entry[1][6]
             entry_minutes_remaining_till_cranny_event:int = entry[1][7]
             if entry_before_noon and entry_last_report_m == 'A':
-                result += "** (this morning, accurate for " + str(entry_minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
+                result += "**__ (this morning, accurate for " + str(entry_minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
             elif not entry_before_noon and entry_last_report_m == 'A':
-                result += "** (this morning, needs PM update :exclamation: ) \n"
+                result += "**__ (this morning, needs PM update :exclamation: ) \n"
             elif not entry_before_noon and entry_last_report_m == 'P':
                 if entry_is_cranny_open:
-                    result += "** (this afternoon, accurate until Nook's Cranny closes in " + str(entry_minutes_remaining_till_cranny_event) + " minutes :white_check_mark: ) \n"
+                    result += "**__ (this afternoon, store closes in " + str(entry_minutes_remaining_till_cranny_event) + " minutes :white_check_mark: ) \n"
                 else:
-                    result += "** (this afternoon :white_check_mark:, but Nook's Cranny is currently closed! :exclamation: "
+                    result += "**__ (this afternoon :white_check_mark:, but Nook's Cranny is closed now! :exclamation:)\n"
 
             else:
-                result = "Something went wrong, please let @eccentricb know"
+                result = "Whoops, something went wrong, please let @eccentricb know"
                 return result
 
-        result += "--------------------------------------------------------- \n"
+        result += "--------------------------------------\n_Prices reported earlier days:_"
+        result += '\n```'
         for entry in sorted_old_entries.items():
-            result += entry[0] + ": **" + str(entry[1][0]) + '** (' + str(entry[1][1]) + ' day(s) ago)\n'
+            result += entry[0] + ": " + str(entry[1][0]) + ' (' + str(entry[1][1]) + 'd ago)\t'
+        result += '\n```'
 
         if get_potential_fc and len(fc_entries) > 0:
-            result += "--------------------------------------------------------- \n~ ~ ~ :crystal_ball: NOOK TURNIP PRICE FORECAST :crystal_ball: ~ ~ ~\nMaximum Potential Prices: \n"
+            result += "\n\n~\t~\t~\t~\t~\t~ :crystal_ball: **NOOK TURNIP PRICE FORECAST** :crystal_ball: ~\t~\t~\t~\t~\t~\n_Highest Maximum Potential Future Prices This Week:_\n"
+
+            MAX_FC_ENTRIES:int = 3
+            fc_count:int = 0
             for entry in sorted_fc_entries.items():
-                result += entry[0] + ": **" + str(entry[1][0]) + '** on ' + time_index_to_text(entry[1][1]) + '... \n'
+                if fc_count < MAX_FC_ENTRIES:
+                    result += entry[0] + ": **" + str(entry[1][0]) + '** as soon as ' + time_index_to_text(entry[1][1]) + '... \n'
+                    fc_count += 1
+                else:
+                    break
 
     else:
-        result += "--------------------------------------------------------- \n~ ~ ~ :sunrise: SUNDAY DAISY MAE PRICES REPORTED TODAY :sunrise: ~ ~ ~\n"
+        result += "-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\n~\t~\t~\t:sunrise: SUNDAY DAISY MAE PRICES REPORTED TODAY :sunrise: ~\t~\t~\t\n"
 
         for entry in sorted_today_entries.items():
             result += entry[0] + ": **" + str(entry[1][0])
@@ -453,7 +462,17 @@ async def bpt_proc(ctx, arg:str):
         if not is_sunday:
             # Generate forecast data, create graph, send tally with resulting graph
             genplot(user_info_path, get_forecast_data=True)
-            await ctx.send(tally(True), file=discord.File('result.png'))
+            user_max_price:tuple = get_max_potential_price(user_info)
+            message_txt:str = "Cool, got the bpt rate of **" + arg + "** for " + user_info["username"] + "!\n"
+
+            if user_max_price[1] >= 0:
+                message_txt += "Your Nook's maximum potential bpt rate this week is :crystal_ball: **" + str(user_max_price[0]) + "** bells per turnip!\n"
+            else:
+                message_txt += "Couldn't get forecast data for your island, sorry!! :man_bowing: \n"
+
+            await ctx.send(message_txt, file=discord.File('result.png'))
+            # TODO Optimize this so that it doesn't call update_forecast_data twice!
+            await ctx.send(tally(True))
         else:
             await ctx.send(tally())
 
