@@ -31,13 +31,29 @@ MAX_INDEX = 1
 bot = commands.Bot(command_prefix='!')
 
 
-def tally() ->str:
+def get_max_potential_price(user_info:dict) -> tuple:
+    user_fc_data:list = update_forecast_data(user_info)
+    max_value:int = 0
+    max_value_index:int = -1
+    for time_index in range(0, NUM_RESULT_ELEMENTS):
+        if user_fc_data[time_index][MAX_INDEX] > max_value:
+            max_value = user_fc_data[time_index][MAX_INDEX]
+            max_value_index = time_index
+
+    return max_value, max_value_index
+
+def time_index_to_text(index:int)->str:
+    result = ['Monday Morning', 'Monday Afternoon', 'Tuesday Morning', 'Tuesday Afternoon', 'Wednesday Morning', 'Wednesday Afternoon', 'Thursday Morning', 'Thursday Afternoon', 'Friday Morning', 'Friday Afternoon', 'Saturday Morning', 'Saturday Afternoon']
+    return result[index] if 0 <= index < NUM_RESULT_ELEMENTS else ""
+
+def tally(get_potential_fc:bool=False) ->str:
     global current_date_no
     global is_sunday
 
     result:str = "Last updated Turnip Prices (Bells per Turnip):\n"
     today_entries:dict = {}
     old_entries:dict = {}
+    fc_entries:dict = {}
     json_files: list = glob.glob(".\\Users\\*.json")
 
     for file in json_files:
@@ -49,15 +65,32 @@ def tally() ->str:
 
             same_day: bool = False
             minutes_remaining_till_noon: int = 0
+            minutes_remaining_till_cranny_event:int = 0
 
             current_user_datetime: datetime = datetime.now(pytz.timezone(user_info["timezone"]))
             noon_user_datetime: datetime = current_user_datetime.replace(hour=12, minute=0, second=0, microsecond=0)
+            open_user_datetime: datetime = current_user_datetime.replace(hour=8, minute=0, second=0, microsecond=0)
+            close_user_datetime:datetime = current_user_datetime.replace(hour=22, minute=0, second=0, microsecond=0)
 
             before_noon:bool = current_user_datetime < noon_user_datetime
+            is_cranny_open:bool = open_user_datetime < current_user_datetime < close_user_datetime
+
             if before_noon:
                 minutes_remaining_till_noon =  int((noon_user_datetime - current_user_datetime).total_seconds() / 60)
 
-            if "prices" in user_info:
+                if is_cranny_open:
+                    minutes_remaining_till_cranny_event = 0
+                else:
+                    minutes_remaining_till_cranny_event = int((open_user_datetime - current_user_datetime).total_seconds() / 60)
+
+            else:
+
+                if is_cranny_open:
+                    minutes_remaining_till_cranny_event = int((close_user_datetime - current_user_datetime).total_seconds() / 60)
+                else:
+                    minutes_remaining_till_cranny_event = 0
+
+            if "prices" in user_info and "username" in user_info:
                 prices:dict = user_info["prices"]
                 if len(prices) > 0:
                     last_price:int = list(prices.values())[-1]
@@ -69,13 +102,19 @@ def tally() ->str:
 
                     if days_since == 0:
                         same_day = True
-                        today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
+                        today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
                     elif days_since < 7:
-                        old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon)
+                        old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
+
+                if get_potential_fc:
+                    user_max_price = get_max_potential_price(user_info)
+                    if user_max_price[1] != -1: # Add to fc_entries assuming we found a valid max potential
+                        fc_entries[user_info["username"]] = user_max_price
 
     sort_reverse:bool = not is_sunday
     sorted_today_entries:dict = {k: v for k, v in sorted(today_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
     sorted_old_entries: dict = {k: v for k, v in sorted(old_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
+    sorted_fc_entries:dict = {k: v for k, v in sorted(fc_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
 
     if not is_sunday:
         result += "--------------------------------------------------------- \n~ ~ ~ :sunrise: PRICES REPORTED TODAY :sunrise: ~ ~ ~\n"
@@ -86,12 +125,18 @@ def tally() ->str:
             entry_before_noon:bool = entry[1][3]
             entry_last_report_m:str = entry[1][2]
             entry_minutes_remaining_till_noon:int = entry[1][5]
+            entry_is_cranny_open:bool = entry[1][6]
+            entry_minutes_remaining_till_cranny_event:int = entry[1][7]
             if entry_before_noon and entry_last_report_m == 'A':
                 result += "** (this morning, accurate for " + str(entry_minutes_remaining_till_noon) + " more minutes :white_check_mark: ) \n"
             elif not entry_before_noon and entry_last_report_m == 'A':
-                result += "** (reported this morning, needs PM update :exclamation: ) \n"
+                result += "** (this morning, needs PM update :exclamation: ) \n"
             elif not entry_before_noon and entry_last_report_m == 'P':
-                result += "** (reported this afternoon, accurate for rest of day :white_check_mark: ) \n"
+                if entry_is_cranny_open:
+                    result += "** (this afternoon, accurate until Nook's Cranny closes in " + str(entry_minutes_remaining_till_cranny_event) + " minutes :white_check_mark: ) \n"
+                else:
+                    result += "** (this afternoon :white_check_mark:, but Nook's Cranny is currently closed! :exclamation: "
+
             else:
                 result = "Something went wrong, please let @eccentricb know"
                 return result
@@ -99,6 +144,12 @@ def tally() ->str:
         result += "--------------------------------------------------------- \n"
         for entry in sorted_old_entries.items():
             result += entry[0] + ": **" + str(entry[1][0]) + '** (' + str(entry[1][1]) + ' day(s) ago)\n'
+
+        if get_potential_fc and len(fc_entries) > 0:
+            result += "--------------------------------------------------------- \n~ ~ ~ :crystal_ball: NOOK TURNIP PRICE FORECAST :crystal_ball: ~ ~ ~\nMaximum Potential Prices: \n"
+            for entry in sorted_fc_entries.items():
+                result += entry[0] + ": **" + str(entry[1][0]) + '** on ' + time_index_to_text(entry[1][1]) + '... \n'
+
     else:
         result += "--------------------------------------------------------- \n~ ~ ~ :sunrise: SUNDAY DAISY MAE PRICES REPORTED TODAY :sunrise: ~ ~ ~\n"
 
@@ -122,7 +173,7 @@ def get_first_key_value_this_week(xaxis:list, prices:dict)->str:
     return ""
 
 
-def genplot(json_glob:str, forecast_data:list = []) -> bool:
+def genplot(json_glob:str, get_forecast_data:bool=False, all_data:bool=False) -> bool:
     global current_date_no
 
     success:bool = True
@@ -135,13 +186,14 @@ def genplot(json_glob:str, forecast_data:list = []) -> bool:
 
     past_sunday_date_no:int = current_date_no - ((current_date_no - 3) % 7)
 
-    forecast_data_size: int = len(forecast_data)
+    min_range:int = past_sunday_date_no+1 if not all_data else 4
+    max_range:int = past_sunday_date_no+7 if not all_data else current_date_no
+    for i in range(min_range, max_range):
 
-    for i in range(past_sunday_date_no+1, past_sunday_date_no+7):
-
-        xaxis.append(str(i).zfill(ZFILL_LEN) + 'A')
-        xaxis.append(str(i).zfill(ZFILL_LEN) + 'P')
-        xtickslist.append(str(i).zfill(ZFILL_LEN) + 'A')
+        if not (all_data and (i - 3) % 7 == 0):
+            xaxis.append(str(i).zfill(ZFILL_LEN) + 'A')
+            xaxis.append(str(i).zfill(ZFILL_LEN) + 'P')
+            xtickslist.append(str(i).zfill(ZFILL_LEN) + 'A')
 
     for file in json_files:
         x:list = []
@@ -156,6 +208,9 @@ def genplot(json_glob:str, forecast_data:list = []) -> bool:
                 user_info:dict = json.load(jsonfile)
         except Exception as e:
             print("genplot error occurred loading json " + str(e))
+
+        forecast_data: list = update_forecast_data(user_info) if get_forecast_data else []
+        forecast_data_size: int = len(forecast_data)
 
         if "prices" in user_info:
             prices:dict = user_info["prices"]
@@ -220,7 +275,7 @@ def genplot(json_glob:str, forecast_data:list = []) -> bool:
                     plt.fill_between(xp, yp_min, yp_max, alpha=0.3)
 
                 #plt.xticks(xtickslist, list(range(len(xtickslist))))
-                plt.xticks(xtickslist, ['Mo','Tu','W','Th','F','Sa'])
+                plt.xticks(xtickslist, ['Mo','Tu','W','Th','F','Sa'] if not all_data else [''])
 
                 plt.xlabel('day')
                 plt.ylabel('BPT')
@@ -340,26 +395,29 @@ async def bpt_proc(ctx, arg:str):
     global default_timezone
     global DAYZERO
 
-    current_date_no = datetime.now(pytz.timezone(default_timezone)).timetuple().tm_yday - DAYZERO
-    is_sunday = datetime.now(pytz.timezone(default_timezone)).weekday() == 6
+    author_username: str = str(ctx.message.author)
+    author_id: str = str(ctx.message.author.id)
 
-    author_username:str = str(ctx.message.author)
-    author_id:str = str(ctx.message.author.id)
+    user_info: dict = {"username": author_username, "timezone": default_timezone, "prices": {}}
+    user_info_path: str = "./Users/{}.json".format(author_id)
+
+    if os.path.exists(user_info_path):
+        with open(user_info_path) as f:
+            user_info = json.load(f)
+
+    current_date_no = datetime.now(pytz.timezone(user_info["timezone"])).timetuple().tm_yday - DAYZERO
+    is_sunday = datetime.now(pytz.timezone(user_info["timezone"])).weekday() == 6
 
     if arg.lower() == "chart" or arg.lower() == "charts" or arg.lower() == "graph" or arg.lower() == "plot":
         #TODO differentiate chart "me" vs chart "all"
         genplot(".\\Users\\*.json")
         await ctx.send(file=discord.File('result.png'))
+    elif arg.lower() == "history":
+        genplot(user_info_path, get_forecast_data=False, all_data=True)
+        await ctx.send(file=discord.File('result.png'))
     elif arg.lower() == "check":
         await ctx.send(tally())
     elif arg.isdigit():
-
-        user_info:dict = {"username": author_username, "timezone": default_timezone, "prices": { } }
-        user_info_path:str = ".\\Users\\{}.json".format(author_id)
-
-        if os.path.exists(user_info_path):
-            with open(user_info_path) as f:
-                user_info = json.load(f)
 
         current_user_datetime:datetime = datetime.now(pytz.timezone(user_info["timezone"]))
         noon_user_datetime:datetime = current_user_datetime.replace(hour=12,minute=0)
@@ -375,9 +433,8 @@ async def bpt_proc(ctx, arg:str):
 
         if not is_sunday:
             # Generate forecast data, create graph, send tally with resulting graph
-            forecast_data:list = update_forecast_data(user_info)
-            genplot(user_info_path, forecast_data)
-            await ctx.send(tally(), file=discord.File('result.png'))
+            genplot(user_info_path, get_forecast_data=True)
+            await ctx.send(tally(True), file=discord.File('result.png'))
         else:
             await ctx.send(tally())
 
