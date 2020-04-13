@@ -35,10 +35,11 @@ def get_max_potential_price(user_info:dict) -> tuple:
     user_fc_data:list = update_forecast_data(user_info)
     max_value:int = 0
     max_value_index:int = -1
-    for time_index in range(0, NUM_RESULT_ELEMENTS):
-        if user_fc_data[time_index][MAX_INDEX] > max_value:
-            max_value = user_fc_data[time_index][MAX_INDEX]
-            max_value_index = time_index
+    if len(user_fc_data) >= NUM_RESULT_ELEMENTS:
+        for time_index in range(0, NUM_RESULT_ELEMENTS):
+            if user_fc_data[time_index][MAX_INDEX] > max_value:
+                max_value = user_fc_data[time_index][MAX_INDEX]
+                max_value_index = time_index
 
     return max_value, max_value_index
 
@@ -290,7 +291,9 @@ def genplot(json_glob:str, get_forecast_data:bool=False, all_data:bool=False) ->
     return success
 
 
-def generate_forecast_data(user_info:dict):
+def generate_forecast_data(user_info:dict)->bool:
+
+    user_entry_this_week:bool = False
 
     if "prices" in user_info:
         gen_cmd: str = str(TURNIP_FORECAST_CMD) + ' ' + price_forecast_csv_path + ' '
@@ -304,6 +307,7 @@ def generate_forecast_data(user_info:dict):
 
         if past_sunday_date_key in prices:
             daisy_mae_price = prices[past_sunday_date_key]
+            user_entry_this_week = True
 
         gen_cmd += str(daisy_mae_price) + ' '
 
@@ -316,18 +320,23 @@ def generate_forecast_data(user_info:dict):
 
             if am_key in prices:
                 am_value = prices[am_key]
+                user_entry_this_week = True
             if pm_key in prices:
                 pm_value = prices[pm_key]
+                user_entry_this_week = True
 
             gen_cmd += str(am_value) + ' ' + str(pm_value) + ' '
 
-        try:
-            os.system(gen_cmd)
-        except Exception as e:
-            print("Error calling command in generate_forecast_data " + str(e))
+        if user_entry_this_week:
+            try:
+                os.system(gen_cmd)
+            except Exception as e:
+                print("Error calling command in generate_forecast_data " + str(e))
 
     else:
         print("Error reading price data from user_info")
+
+    return user_entry_this_week
 
 
 def read_forecast_data()->list:
@@ -380,8 +389,10 @@ def read_forecast_data()->list:
     return result
 
 def update_forecast_data(user_info:dict)->list:
-    generate_forecast_data(user_info)
-    return read_forecast_data()
+    if generate_forecast_data(user_info):
+        return read_forecast_data()
+    else:
+        return []
 
 
 @bot.command(name=COMMAND.upper(), help='Stores the Bells Per Turnip for the user')
