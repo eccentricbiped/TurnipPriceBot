@@ -27,6 +27,9 @@ NUM_RESULT_ELEMENTS = 2 * 6 # [ [ Mon AM min, Mon AM max ] , [ Mon PM min, Mon P
 MIN_INDEX = 0
 MAX_INDEX = 1
 
+bpt_update_counter_dict:dict = {}
+UPDATE_THRESHOLD = 5
+
 tz_command_instructions:str = "\nUse the command `!tz` to specify your island time zone!\n\nYou can use `!tz E`, `!tz C`, `!tz M`, `!tz P` for Eastern, Central, Mountain and Pacific US timezones respectively.\n\n" \
             "Just a one time thing, I promise! :smile: \n\n" \
             "If your timezone is something else, please use `!tz` followed by whichever value matches from this list: <https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568>\n"
@@ -51,7 +54,7 @@ def time_index_to_text(index:int)->str:
     result = ['Mon Morning', 'Mon Afternoon', 'Tue Morning', 'Tue Afternoon', 'Wed Morning', 'Wed Afternoon', 'Thu Morning', 'Thu Afternoon', 'Fri Morning', 'Fri Afternoon', 'Sat Morning', 'Sat Afternoon']
     return result[index] if 0 <= index < NUM_RESULT_ELEMENTS else ""
 
-def tally(server_id:str,get_potential_fc:bool=False) ->str:
+def tally(server_id:str,get_potential_fc:bool=False,full_update:bool=False) ->str:
     global current_date_no
     global is_sunday
 
@@ -149,23 +152,24 @@ def tally(server_id:str,get_potential_fc:bool=False) ->str:
                 #result = "Whoops, something went wrong, please let @eccentricb know"
                 #return result
 
-        result += "--------------------------------------\n_Prices reported earlier days:_"
-        result += '\n```'
-        for entry in sorted_old_entries.items():
-            result += entry[0] + ": " + str(entry[1][0]) + ' (' + str(entry[1][1]) + 'd ago)\t'
-        result += '\n```'
+        if full_update:
+            result += "--------------------------------------\n_Prices reported earlier days:_"
+            result += '\n```'
+            for entry in sorted_old_entries.items():
+                result += entry[0] + ": " + str(entry[1][0]) + ' (' + str(entry[1][1]) + 'd ago)\t'
+            result += '\n```'
 
-        if get_potential_fc and len(fc_entries) > 0:
-            result += "\n\n~\t~\t~\t~\t~\t~ :crystal_ball: **NOOK TURNIP PRICE FORECAST** :crystal_ball: ~\t~\t~\t~\t~\t~\n_Highest Maximum Potential Future Prices This Week:_\n"
+            if get_potential_fc and len(fc_entries) > 0:
+                result += "\n\n~\t~\t~\t~\t~\t~ :crystal_ball: **NOOK TURNIP PRICE FORECAST** :crystal_ball: ~\t~\t~\t~\t~\t~\n_Highest Maximum Potential Future Prices This Week:_\n"
 
-            MAX_FC_ENTRIES:int = 3
-            fc_count:int = 0
-            for entry in sorted_fc_entries.items():
-                if fc_count < MAX_FC_ENTRIES:
-                    result += entry[0] + ": **" + str(entry[1][0]) + '** as soon as ' + time_index_to_text(entry[1][1]) + '... \n'
-                    fc_count += 1
-                else:
-                    break
+                MAX_FC_ENTRIES:int = 3
+                fc_count:int = 0
+                for entry in sorted_fc_entries.items():
+                    if fc_count < MAX_FC_ENTRIES:
+                        result += entry[0] + ": **" + str(entry[1][0]) + '** as soon as ' + time_index_to_text(entry[1][1]) + '... \n'
+                        fc_count += 1
+                    else:
+                        break
 
     else:
         result += "-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\n~\t~\t~\t:sunrise: SUNDAY DAISY MAE PRICES REPORTED TODAY :sunrise: ~\t~\t~\t\n"
@@ -505,6 +509,14 @@ async def bpt_proc(ctx:commands.Context, arg:str):
     author_username: str = str(ctx.message.author)
     author_id: str = str(ctx.message.author.id)
     server_id:str = str(ctx.guild.id)
+    update_count:int = 0
+    do_full_update:bool = False
+
+    if server_id in bpt_update_counter_dict:
+        update_count = bpt_update_counter_dict[server_id] + 1
+        if update_count >= UPDATE_THRESHOLD:
+            update_count = 0
+            do_full_update = True
 
     user_data_path:str = "./Users/{}".format(server_id)
     if not os.path.exists(user_data_path):
@@ -537,7 +549,8 @@ async def bpt_proc(ctx:commands.Context, arg:str):
             genplot(user_info_path, get_forecast_data=False, all_data=True)
             await ctx.send(file=discord.File('result.png'))
         elif arg.lower() == "check":
-            await ctx.send(tally(server_id))
+            await ctx.send(tally(server_id, full_update=do_full_update))
+            update_count = 0
         elif arg.isdigit():
 
             current_user_datetime:datetime = datetime.now(pytz.timezone(user_info["timezone"]))
@@ -564,8 +577,10 @@ async def bpt_proc(ctx:commands.Context, arg:str):
 
                 await ctx.send(message_txt, file=discord.File('result.png'))
                 # TODO Optimize this so that it doesn't call update_forecast_data twice!
-                await ctx.send(tally(server_id, True))
+                await ctx.send(tally(server_id, True, do_full_update))
             else:
-                await ctx.send(tally(server_id))
+                await ctx.send(tally(server_id, False, do_full_update))
+
+    bpt_update_counter_dict[server_id] = update_count
 
 bot.run(TOKEN)
