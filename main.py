@@ -120,6 +120,8 @@ def tally(server_id:str,get_potential_fc:bool=False,full_update:bool=False) ->st
                     if user_max_price[1] != -1 and user_max_price[0] > 300: # Add to fc_entries assuming we found a valid max potential
                         fc_entries[user_info["username"]] = user_max_price
 
+            jsonfile.close()
+
     sort_reverse:bool = not is_sunday
     sorted_today_entries:dict = {k: v for k, v in sorted(today_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
     sorted_old_entries: dict = {k: v for k, v in sorted(old_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
@@ -227,6 +229,7 @@ def genplot(json_glob:str, get_forecast_data:bool=False, all_data:bool=False) ->
         try:
             with open(file, 'r') as jsonfile:
                 user_info:dict = json.load(jsonfile)
+                jsonfile.close()
         except Exception as e:
             print("genplot error occurred loading json " + str(e))
 
@@ -400,7 +403,10 @@ def read_forecast_data()->list:
                     result_index += 1
         else:
             # No forecast data available
+            csvfile.close()
             return []
+
+        csvfile.close()
 
     #for res in result:
     #    print(res)
@@ -418,6 +424,7 @@ def update_forecast_data(user_info:dict)->list:
 def update_user_json(user_info:dict, user_info_path:str):
     with open(user_info_path, 'w+') as wf:
         json.dump(user_info, wf, indent=4, sort_keys=True)
+        wf.close()
 
 
 def name_help_text()->str:
@@ -465,6 +472,7 @@ async def set_tz(ctx:commands.Context, arg:str):
     if os.path.exists(user_info_path):
         with open(user_info_path) as f:
             user_info = json.load(f)
+            f.close()
 
     arg_upper:str = arg.upper()
     if arg_upper == "E":
@@ -530,6 +538,7 @@ async def bpt_proc(ctx:commands.Context, arg:str):
     if os.path.exists(user_info_path):
         with open(user_info_path) as f:
             user_info = json.load(f)
+            f.close()
 
     else:
         first_time_user = True
