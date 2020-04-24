@@ -28,7 +28,9 @@ MIN_INDEX = 0
 MAX_INDEX = 1
 
 bpt_update_counter_dict:dict = {}
-UPDATE_THRESHOLD = 5
+UPDATE_THRESHOLD = 4
+
+NOTIFY_OFF = -1
 
 tz_command_instructions:str = "\nUse the command `!tz` to specify your island time zone!\n\nYou can use `!tz E`, `!tz C`, `!tz M`, `!tz P` for Eastern, Central, Mountain and Pacific US timezones respectively.\n\n" \
             "Just a one time thing, I promise! :smile: \n\n" \
@@ -36,6 +38,22 @@ tz_command_instructions:str = "\nUse the command `!tz` to specify your island ti
 
 
 bot = commands.Bot(command_prefix='!')
+
+
+####################### FUNCTIONS #######################
+
+def get_user_data_object(ctx:commands.Context)->dict:
+    author_id: str = str(ctx.message.author.id)
+    server_id: str = str(ctx.guild.id)
+    author_username: str = str(ctx.message.author)
+
+    user_info_path: str = "./Users/{}/{}.json".format(server_id, author_id)
+    user_info: dict = load_user_info(user_info_path)
+
+    return { "author_id": author_id, "server_id": server_id, "author_username": author_username, "user_info_path": user_info_path, "user_info": user_info }
+
+def check_if_first_time_user(user_info_path:str)->bool:
+    return not os.path.exists(user_info_path)
 
 
 def get_max_potential_price(user_info:dict) -> tuple:
@@ -69,58 +87,57 @@ def tally(server_id:str,get_potential_fc:bool=False,full_update:bool=False) ->st
         x:list = []
         y:list = []
 
-        with open(file, 'r') as jsonfile:
-            user_info:dict = json.load(jsonfile)
 
-            same_day: bool = False
-            minutes_remaining_till_noon: int = 0
-            minutes_remaining_till_cranny_event:int = 0
 
-            current_user_datetime: datetime = datetime.now(pytz.timezone(user_info["timezone"]))
-            noon_user_datetime: datetime = current_user_datetime.replace(hour=12, minute=0, second=0, microsecond=0)
-            open_user_datetime: datetime = current_user_datetime.replace(hour=8, minute=0, second=0, microsecond=0)
-            close_user_datetime:datetime = current_user_datetime.replace(hour=22, minute=0, second=0, microsecond=0)
+        user_info:dict = load_user_info(file)
 
-            before_noon:bool = current_user_datetime < noon_user_datetime
-            is_cranny_open:bool = open_user_datetime < current_user_datetime < close_user_datetime
+        same_day: bool = False
+        minutes_remaining_till_noon: int = 0
+        minutes_remaining_till_cranny_event:int = 0
 
-            if before_noon:
-                minutes_remaining_till_noon =  int((noon_user_datetime - current_user_datetime).total_seconds() / 60)
+        current_user_datetime: datetime = datetime.now(pytz.timezone(user_info["timezone"]))
+        noon_user_datetime: datetime = current_user_datetime.replace(hour=12, minute=0, second=0, microsecond=0)
+        open_user_datetime: datetime = current_user_datetime.replace(hour=8, minute=0, second=0, microsecond=0)
+        close_user_datetime:datetime = current_user_datetime.replace(hour=22, minute=0, second=0, microsecond=0)
 
-                if is_cranny_open:
-                    minutes_remaining_till_cranny_event = 0
-                else:
-                    minutes_remaining_till_cranny_event = int((open_user_datetime - current_user_datetime).total_seconds() / 60)
+        before_noon:bool = current_user_datetime < noon_user_datetime
+        is_cranny_open:bool = open_user_datetime < current_user_datetime < close_user_datetime
 
+        if before_noon:
+            minutes_remaining_till_noon =  int((noon_user_datetime - current_user_datetime).total_seconds() / 60)
+
+            if is_cranny_open:
+                minutes_remaining_till_cranny_event = 0
             else:
+                minutes_remaining_till_cranny_event = int((open_user_datetime - current_user_datetime).total_seconds() / 60)
 
-                if is_cranny_open:
-                    minutes_remaining_till_cranny_event = int((close_user_datetime - current_user_datetime).total_seconds() / 60)
-                else:
-                    minutes_remaining_till_cranny_event = 0
+        else:
 
-            if "prices" in user_info and "username" in user_info:
-                prices:dict = user_info["prices"]
-                if len(prices) > 0:
-                    last_price:int = list(prices.values())[-1]
-                    days_since:int = current_date_no - int(list(prices.keys())[-1][:ZFILL_LEN])
-                    last_report_m:str = list(prices.keys())[-1][-1]
+            if is_cranny_open:
+                minutes_remaining_till_cranny_event = int((close_user_datetime - current_user_datetime).total_seconds() / 60)
+            else:
+                minutes_remaining_till_cranny_event = 0
 
-                    if last_report_m.isdigit():
-                        last_report_m = '' # Sunday price report
+        if "prices" in user_info and "username" in user_info:
+            prices:dict = user_info["prices"]
+            if len(prices) > 0:
+                last_price:int = list(prices.values())[-1]
+                days_since:int = current_date_no - int(list(prices.keys())[-1][:ZFILL_LEN])
+                last_report_m:str = list(prices.keys())[-1][-1]
 
-                    if days_since == 0:
-                        same_day = True
-                        today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
-                    elif days_since < 5:
-                        old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
+                if last_report_m.isdigit():
+                    last_report_m = '' # Sunday price report
 
-                if get_potential_fc:
-                    user_max_price = get_max_potential_price(user_info)
-                    if user_max_price[1] != -1 and user_max_price[0] > 300: # Add to fc_entries assuming we found a valid max potential
-                        fc_entries[user_info["username"]] = user_max_price
+                if days_since == 0:
+                    same_day = True
+                    today_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
+                elif days_since < 5:
+                    old_entries[user_info["username"]] = (last_price, days_since, last_report_m, before_noon, same_day, minutes_remaining_till_noon, is_cranny_open, minutes_remaining_till_cranny_event)
 
-            jsonfile.close()
+            if get_potential_fc:
+                user_max_price = get_max_potential_price(user_info)
+                if user_max_price[1] != -1 and user_max_price[0] > 300: # Add to fc_entries assuming we found a valid max potential
+                    fc_entries[user_info["username"]] = user_max_price
 
     sort_reverse:bool = not is_sunday
     sorted_today_entries:dict = {k: v for k, v in sorted(today_entries.items(), key=lambda item: item[1][0], reverse=sort_reverse)}
@@ -164,7 +181,7 @@ def tally(server_id:str,get_potential_fc:bool=False,full_update:bool=False) ->st
             if get_potential_fc and len(fc_entries) > 0:
                 result += "\n\n~\t~\t~\t~\t~\t~ :crystal_ball: **NOOK TURNIP PRICE FORECAST** :crystal_ball: ~\t~\t~\t~\t~\t~\n_Highest Maximum Potential Future Prices This Week:_\n"
 
-                MAX_FC_ENTRIES:int = 3
+                MAX_FC_ENTRIES:int = 20
                 fc_count:int = 0
                 for entry in sorted_fc_entries.items():
                     if fc_count < MAX_FC_ENTRIES:
@@ -196,6 +213,24 @@ def get_first_key_value_this_week(xaxis:list, prices:dict)->str:
     return ""
 
 
+def check_who_to_notify(json_glob:str, price:int)->str:
+    global NOTIFY_OFF
+
+    result:str = "\n:bell: :"
+    json_files: list = glob.glob(json_glob)
+    count_notify:int = 0
+
+    for file in json_files:
+        user_info: dict = load_user_info(file)
+        user_id:str = file[-23:-5] #Hacky way to get the user id
+        
+        if "notify" in user_info and "username_discord" in user_info:
+            if user_info["notify"] != NOTIFY_OFF and price >= user_info["notify"]:
+                result += " <@" + user_id + "> "
+                count_notify += 1
+
+    return "" if count_notify == 0 else result + "\n\n"
+
 def genplot(json_glob:str, get_forecast_data:bool=False, all_data:bool=False) -> bool:
     global current_date_no
 
@@ -224,14 +259,8 @@ def genplot(json_glob:str, get_forecast_data:bool=False, all_data:bool=False) ->
         xp:list = []
         yp_min:list = []
         yp_max:list = []
-        user_info: dict = {}
 
-        try:
-            with open(file, 'r') as jsonfile:
-                user_info:dict = json.load(jsonfile)
-                jsonfile.close()
-        except Exception as e:
-            print("genplot error occurred loading json " + str(e))
+        user_info: dict = load_user_info(file)
 
         forecast_data: list = update_forecast_data(user_info) if get_forecast_data else []
         forecast_data_size: int = len(forecast_data)
@@ -421,11 +450,30 @@ def update_forecast_data(user_info:dict)->list:
         return []
 
 
+def load_user_info(file_path:str)->dict:
+    user_info: dict = {"username": "None", "username_discord": "None", "timezone": default_timezone, "notify": NOTIFY_OFF, "prices": {}}
+    try:
+        with open(file_path, 'r') as jsonfile:
+            user_info = json.load(jsonfile)
+            jsonfile.close()
+    except Exception as e:
+        print("load_user_info error occurred loading json " + str(e))
+
+    return user_info
+
+
 def update_user_json(user_info:dict, user_info_path:str):
     with open(user_info_path, 'w+') as wf:
         json.dump(user_info, wf, indent=4, sort_keys=True)
         wf.close()
 
+
+def update_user_data(user_data:dict):
+    if "user_info" in user_data and "user_info_path" in user_data:
+        update_user_json(user_data["user_info"], user_data["user_info_path"])
+
+
+####################### HELP TEXT #######################
 
 def name_help_text()->str:
     return "\nSpecify the name of your island using `!name`\n\n" \
@@ -433,15 +481,59 @@ def name_help_text()->str:
             "If your island name has a space in it you'll need to use the quotation marks around the name eg `!name ❝My land❞`\n\n"
 
 
-@bot.command(name="name", help='Updates username for user')
+def bpt_help_text()->str:
+    return "\nThere are handful of things you can do with the bpt command! :smile: \n\n" \
+                "Use `!bpt <n>` to specify the current Bells Per Turnip (BPT) rate on your island, whether it's Sunday and you're buying from Daisy Mae or it's M-Sa and you're selling your turnips to the Nooks!\n\n" \
+                "For example `!bpt 99` tells the bot that the current BPT rate at that time is 99 bells per turnip!\n\n" \
+                "You can also use `!bpt check` to check in on the current prices and times to determine if the prices are still accurate at the moment as well as how much time is left until it changes\n\n"
+
+
+def notify_help_txt()->str:
+    return "\nUse the `!notify <n>` command to be notified by the bot when someone reports prices above a certain BPT rate! :bell: :chart_with_upwards_trend:\n\n" \
+                "For example if you wish to be notified when someone reports prices above 300 BPT, use the command `!notify 300` and you will be tagged by the bot when someone reports prices at or above that level!\n\n" \
+                ":no_bell: If you wish to turn off notifications from this bot, you can use the command `!notify off`"
+
+####################### BOT COMMAND CALLS #######################
+
+@bot.command(name=COMMAND+"notify", help='Updates username for user')
+async def set_notify(ctx:commands.Context, arg:str=""):
+    if len(arg) == 0 or arg.lower() == "help":
+        await ctx.send(notify_help_txt())
+    else:
+        user_data:dict = get_user_data_object(ctx)
+        user_info:dict = user_data["user_info"]
+        has_updated_info:bool = False
+
+        if check_if_first_time_user(user_data["user_info_path"]):
+            await ctx.send("Hello there! I see this is your first time using JVTurnipPriceBot! I just need one thing before I can work with you! \n" + tz_command_instructions)
+        elif arg.lower() == "off" or arg.lower() == "stop":
+            user_info["notify"] = NOTIFY_OFF
+            has_updated_info = True
+            await ctx.send("Got it, I've turned off price notify alerts for you :no_bell: :thumbsup:")
+        elif arg.isdigit():
+            user_info["notify"] = int(arg)
+            has_updated_info = True
+            await ctx.send("Okay, I will ping you when someone's prices go at or above {}! :bell: :thumbsup:".format(arg))
+
+        if has_updated_info:
+            user_info["username_discord"] = user_data["author_username"]
+            update_user_data(user_data)
+
+
+
+@bot.command(name=COMMAND+"change", help='Changes price for this week')
+async def set_past_price(ctx:commands.Context, arg:str=""):
+    #TODO
+    if len(arg) == 0 or arg.lower() == "help":
+        await ctx.send("\nChange or set the price entry for an earlier time for this week by using `!change <Time>:<Price> command!\n\n" \
+                       "<Time> format is first 3 letters of day of week, dash, then AM/PM. DO NOT USE SPACES!\n\n" \
+                       "For example if you want to set the Monday evening price to 85, enter the command `!change Mon-PM:85`")
+
+
+
+@bot.command(name=COMMAND+"name", help='Updates username for user')
 async def set_username(ctx:commands.Context, arg:str=""):
-    author_id: str = str(ctx.message.author.id)
-    server_id: str = str(ctx.guild.id)
-    author_username: str = str(ctx.message.author)
-
-    user_info: dict = {"username": author_username, "timezone": default_timezone, "prices": {}}
-    user_info_path: str = "./Users/{}/{}.json".format(server_id, author_id)
-
+    user_data:dict = get_user_data_object(ctx)
     new_username:str = arg
 
     if len(new_username) == 0:
@@ -451,28 +543,19 @@ async def set_username(ctx:commands.Context, arg:str=""):
     elif len(new_username) > 32:
         await ctx.send(":exclamation: Well there's a mouthful! :exclamation:\nSorry, I can only store up to 32 characters for the island name (AC limits to 10 but I've given you some legroom)\nTry again!")
     else:
-        user_info["username"] = new_username
-        update_user_json(user_info, user_info_path)
+        user_data["user_info"]["username"] = new_username
+        update_user_data(user_data)
         await ctx.send(":thumbsup: Got it! I've updated your island's name to **" + new_username + "**!\n\n"+bpt_help_text())
 
 
-@bot.command(name="tz", help='Updates timezone for user')
+@bot.command(name=COMMAND+"tz", help='Updates timezone for user')
 async def set_tz(ctx:commands.Context, arg:str):
     global tz_command_instructions
 
-    author_id: str = str(ctx.message.author.id)
-    server_id: str = str(ctx.guild.id)
-    author_username: str = str(ctx.message.author)
-
-    user_info: dict = {"username": author_username, "timezone": default_timezone, "prices": {}}
-    user_info_path: str = "./Users/{}/{}.json".format(server_id, author_id)
+    user_data:dict = get_user_data_object(ctx)
+    user_info:dict = user_data["user_info"]
 
     time_zone_str: str = arg
-
-    if os.path.exists(user_info_path):
-        with open(user_info_path) as f:
-            user_info = json.load(f)
-            f.close()
 
     arg_upper:str = arg.upper()
     if arg_upper == "E":
@@ -487,39 +570,34 @@ async def set_tz(ctx:commands.Context, arg:str):
     if time_zone_str in pytz.all_timezones:
         user_info["timezone"] = time_zone_str
 
-        update_user_json(user_info, user_info_path)
+        update_user_data(user_data)
 
         await ctx.send("Okay! I've updated " + user_info["username"] + "'s time zone to " + time_zone_str + "! :thumbsup:\nNext you can set your island name!\n"+name_help_text())
     else:
         await ctx.send(":exclamation: Sorry I couldn't find a valid time zone for what you entered :exclamation: \n" + tz_command_instructions)
 
 
-def bpt_help_text()->str:
-    return "There are handful of things you can do with the bpt command! :smile: \n\n" \
-                "Use `!bpt <n>` to specify the current Bells Per Turnip (BPT) rate on your island, whether it's Sunday and you're buying from Daisy Mae or it's M-Sa and you're selling your turnips to the Nooks!\n\n" \
-                "For example `!bpt 99` tells the bot that the current BPT rate at that time is 99 bells per turnip!\n\n" \
-                "You can also use `!bpt check` to check in on the current prices and times to determine if the prices are still accurate at the moment as well as how much time is left until it changes\n\n"
 
-
-@bot.command(name=COMMAND.upper(), help='Stores the Bells Per Turnip for the user')
+@bot.command(name=COMMAND.upper()+"BPT", help='Stores the Bells Per Turnip for the user')
 async def bptcap_proc(ctx:commands.Context, arg:str):
     await bpt_proc(ctx, arg)
 
 
-@bot.command(name=COMMAND, help='Stores the Bells Per Turnip for the user')
+@bot.command(name=COMMAND+"bpt", help='Stores the Bells Per Turnip for the user')
 async def bpt_proc(ctx:commands.Context, arg:str):
     global current_date_no
     global is_sunday
-    global default_timezone
     global DAYZERO
+    global UPDATE_THRESHOLD
     global tz_command_instructions
+    global bpt_update_counter_dict
 
-    author_username: str = str(ctx.message.author)
-    author_id: str = str(ctx.message.author.id)
     server_id:str = str(ctx.guild.id)
+
     update_count:int = 0
     do_full_update:bool = False
 
+    # Every so often print additional price information including entries from earlier this week and forecast data
     if server_id in bpt_update_counter_dict:
         update_count = bpt_update_counter_dict[server_id] + 1
         if update_count >= UPDATE_THRESHOLD:
@@ -530,27 +608,22 @@ async def bpt_proc(ctx:commands.Context, arg:str):
     if not os.path.exists(user_data_path):
         os.mkdir(user_data_path)
 
-    user_info: dict = {"username": author_username, "timezone": default_timezone, "prices": {}}
-    user_info_path: str = "./Users/{}/{}.json".format(server_id, author_id)
+    user_data: dict = get_user_data_object(ctx)
+    user_info_path: str = user_data["user_info_path"]
+    user_info: dict = user_data["user_info"]
+    first_time_user: bool = check_if_first_time_user(user_info_path)
 
-    first_time_user: bool = False
-
-    if os.path.exists(user_info_path):
-        with open(user_info_path) as f:
-            user_info = json.load(f)
-            f.close()
-
-    else:
-        first_time_user = True
+    if first_time_user:
         await ctx.send("Hello there! I see this is your first time using JVTurnipPriceBot! I just need one thing before I can work with you! \n" + tz_command_instructions)
 
-    if not first_time_user:
+    else:
         current_date_no = datetime.now(pytz.timezone(user_info["timezone"])).timetuple().tm_yday - DAYZERO
         is_sunday = datetime.now(pytz.timezone(user_info["timezone"])).weekday() == 6
+        server_glob_path:str = "./Users/{}/*.json".format(server_id)
 
         if arg.lower() == "chart" or arg.lower() == "charts" or arg.lower() == "graph" or arg.lower() == "plot":
             #TODO differentiate chart "me" vs chart "all"
-            genplot("./Users/{}/*.json".format(server_id))
+            genplot(server_glob_path)
             await ctx.send(file=discord.File('result.png'))
         elif arg.lower() == "help":
             await ctx.send(bpt_help_text())
@@ -580,11 +653,12 @@ async def bpt_proc(ctx:commands.Context, arg:str):
                 message_txt:str = "Cool, got the bpt rate of **" + arg + "** for " + user_info["username"] + "!\n"
 
                 if user_max_price[1] >= 0:
-                    message_txt += "Your Nook's maximum potential bpt rate this week is :crystal_ball: **" + str(user_max_price[0]) + "** bells per turnip on " + "!\n"
+                    message_txt += "Your Nook's maximum potential bpt rate this week is :crystal_ball: **" \
+                                   + str(user_max_price[0]) + "** bells per turnip as early as {}".format(time_index_to_text(user_max_price[1])) + "!\n"
                 else:
                     message_txt += "Couldn't get forecast data for your island, sorry!! :man_bowing: \n"
 
-                await ctx.send(message_txt, file=discord.File('result.png'))
+                await ctx.send(message_txt + check_who_to_notify(server_glob_path, int(arg)), file=discord.File('result.png'))
                 # TODO Optimize this so that it doesn't call update_forecast_data twice!
                 await ctx.send(tally(server_id, True, do_full_update))
             else:
